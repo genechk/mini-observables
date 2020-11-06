@@ -1,5 +1,6 @@
-import React, { Component } from 'react'
+import React from 'react'
 import { createStore } from './shared/mini-redux.js'
+import { connect, Provider } from './shared/mini-provider.js'
 import {
   CREATE_NOTE,
   UPDATE_NOTE,
@@ -76,6 +77,37 @@ const reducer = (state = initialState, action) => {
 //////////////////
 
 const store = createStore(reducer)
+
+//////////////////////////
+// Provider and connect //
+//////////////////////////
+
+const mapStateToProps = state => ({
+  notes: state.notes,
+  openNoteId: state.openNoteId,
+})
+
+const mapDispatchToProps = dispatch => ({
+  onAddNote: () =>
+    dispatch({
+      type: CREATE_NOTE,
+    }),
+  onChangeNote: (id, content) =>
+    dispatch({
+      type: UPDATE_NOTE,
+      id,
+      content,
+    }),
+  onOpenNote: id =>
+    dispatch({
+      type: OPEN_NOTE,
+      id,
+    }),
+  onCloseNote: () =>
+    dispatch({
+      type: CLOSE_NOTE,
+    }),
+})
 
 ////////////////
 // Components //
@@ -154,70 +186,15 @@ const NoteApp = ({
 )
 
 // Component, assemble
-export class NoteAppContainer extends Component {
-  constructor(props) {
-    super(props)
-    this.state = props.store.getState()
-    this.onAddNote = this.onAddNote.bind(this)
-    this.onChangeNote = this.onChangeNote.bind(this)
-    this.onOpenNote = this.onOpenNote.bind(this)
-    this.onCloseNote = this.onCloseNote.bind(this)
-  }
-
-  componentDidMount() {
-    this.unsubscribe = this.props.store.subscribe(() => {
-      this.setState(this.props.store.getState())
-    })
-  }
-
-  componentWillUnmount() {
-    this.unsubscribe()
-  }
-
-  onAddNote() {
-    console.log('CREATE_NOTE action triggering')
-    this.props.store.dispatch({
-      type: CREATE_NOTE,
-    })
-  }
-
-  onChangeNote(id, content) {
-    console.log('UPDATE_NOTE action triggering')
-    this.props.store.dispatch({
-      type: UPDATE_NOTE,
-      id,
-      content,
-    })
-  }
-
-  onOpenNote(id) {
-    console.log('OPEN_NOTE action triggering')
-    this.props.store.dispatch({
-      type: OPEN_NOTE,
-      id,
-    })
-  }
-
-  onCloseNote() {
-    console.log('CLOSE_NOTE action triggering')
-    this.props.store.dispatch({
-      type: CLOSE_NOTE,
-    })
-  }
-
-  render() {
-    return (
-      <NoteApp
-        {...this.state}
-        onAddNote={this.onAddNote}
-        onChangeNote={this.onChangeNote}
-        onOpenNote={this.onOpenNote}
-        onCloseNote={this.onCloseNote}
-      />
-    )
-  }
-}
+const NoteAppContainer = connect(
+  mapStateToProps,
+  mapDispatchToProps
+)(NoteApp)
 
 export const MiniRedux = () => {
-  return <NoteAppContainer store={store} />
+  return (
+    <Provider store={store}>
+      <NoteAppContainer />
+    </Provider>
+  )
 }
