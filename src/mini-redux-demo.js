@@ -1,6 +1,8 @@
 import React from 'react'
-import { createStore } from './shared/mini-redux.js'
+import { createStore, applyMiddleware } from './shared/mini-redux.js'
+import { loggingMiddleware, thunkMiddleware } from './shared/middleware.js'
 import { connect, Provider } from './shared/mini-provider.js'
+import { api } from './shared/serverAPI.mock.js'
 import {
   CREATE_NOTE,
   UPDATE_NOTE,
@@ -13,30 +15,35 @@ import {
 //////////////////////
 
 const initialState = {
-  nextNoteId: 1,
   notes: {},
   openNoteId: null,
+  isLoading: false,
 }
 
 // Accepts `state` object and `action` function from the dispatcher.
 // Returns new state object that gets old state and updates it
 // according to the action type
+// Requires to be initiated with thunkMiddleware to process async calls
 const reducer = (state = initialState, action) => {
-  console.log(action.type)
   switch (action.type) {
     case CREATE_NOTE: {
-      const id = state.nextNoteId
+      if (!action.id) {
+        return {
+          ...state,
+          isLoading: true,
+        }
+      }
       const newNote = {
-        id,
+        id: action.id,
         content: '',
       }
       return {
         ...state,
-        nextNoteId: id + 1,
-        openNoteId: id,
+        isLoading: false,
+        openNoteId: action.id,
         notes: {
           ...state.notes,
-          [id]: newNote,
+          [action.id]: newNote,
         },
       }
     }
@@ -76,7 +83,10 @@ const reducer = (state = initialState, action) => {
 // Create store //
 //////////////////
 
-const store = createStore(reducer)
+const store = createStore(
+  reducer,
+  applyMiddleware(thunkMiddleware, loggingMiddleware)
+)
 
 //////////////////////////
 // Provider and connect //
@@ -89,8 +99,16 @@ const mapStateToProps = state => ({
 
 const mapDispatchToProps = dispatch => ({
   onAddNote: () =>
-    dispatch({
-      type: CREATE_NOTE,
+    dispatch(dispatch => {
+      dispatch({
+        type: CREATE_NOTE,
+      })
+      api.createNote().then(({ id }) => {
+        dispatch({
+          type: CREATE_NOTE,
+          id,
+        })
+      })
     }),
   onChangeNote: (id, content) =>
     dispatch({

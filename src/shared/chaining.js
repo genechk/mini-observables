@@ -1,4 +1,5 @@
 /** Chaining 2 functions. Basically, approximation to the real pipe function
+ *  @alias   accumulator
  *  @example
  *  chain(console.log, double)
  */
