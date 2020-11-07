@@ -1,7 +1,7 @@
-import React from 'react'
+import React, { createContext, Component } from 'react'
 import { createStore, applyMiddleware } from './shared/mini-redux.js'
 import { loggingMiddleware, thunkMiddleware } from './shared/middleware.js'
-import { connect, Provider } from './shared/mini-provider.js'
+// import { Provider } from './shared/mini-provider.js'
 import { api } from './shared/serverAPI.mock.js'
 import {
   CREATE_NOTE,
@@ -92,24 +92,56 @@ const store = createStore(
 // Provider and connect //
 //////////////////////////
 
+const StoreContext = createContext(store)
+const { Provider, Consumer } = StoreContext
+
+const connect = (
+  mapStateToProps = () => {},
+  mapDispatchToProps = () => {}
+) => ConnectComponent => {
+  class Connected extends Component {
+    static contextType = StoreContext
+    onStoreOrPropsChange(props, context = this.context) {
+      const store = context
+      const state = store.getState()
+      const stateProps = mapStateToProps(state, props)
+      const dispatchProps = mapDispatchToProps(store.dispatch, props)
+      return {
+        ...stateProps,
+        ...dispatchProps,
+      }
+    }
+
+    constructor(props, context) {
+      super(props, context)
+      this.state = this.onStoreOrPropsChange(props, context)
+    }
+
+    componentDidMount() {
+      this.unsubscribe = store.subscribe(() =>
+        this.setState(this.onStoreOrPropsChange(this.props, this.context))
+      )
+    }
+
+    componentWillUnmount() {
+      this.unsubscribe()
+    }
+
+    render() {
+      return <ConnectComponent {...this.props} {...this.state} />
+    }
+  }
+
+  return Connected
+}
+
 const mapStateToProps = state => ({
   notes: state.notes,
   openNoteId: state.openNoteId,
 })
 
 const mapDispatchToProps = dispatch => ({
-  onAddNote: () =>
-    dispatch(dispatch => {
-      dispatch({
-        type: CREATE_NOTE,
-      })
-      api.createNote().then(({ id }) => {
-        dispatch({
-          type: CREATE_NOTE,
-          id,
-        })
-      })
-    }),
+  onAddNote: () => dispatch(createNote()),
   onChangeNote: (id, content) =>
     dispatch({
       type: UPDATE_NOTE,
@@ -126,6 +158,21 @@ const mapDispatchToProps = dispatch => ({
       type: CLOSE_NOTE,
     }),
 })
+
+// Action creator. Allows to abstract away code heavy actions
+const createNote = () => {
+  return dispatch => {
+    dispatch({
+      type: CREATE_NOTE,
+    })
+    api.createNote().then(({ id }) => {
+      dispatch({
+        type: CREATE_NOTE,
+        id,
+      })
+    })
+  }
+}
 
 ////////////////
 // Components //
@@ -211,7 +258,7 @@ const NoteAppContainer = connect(
 
 export const MiniRedux = () => {
   return (
-    <Provider store={store}>
+    <Provider value={store}>
       <NoteAppContainer />
     </Provider>
   )
