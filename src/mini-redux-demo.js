@@ -1,7 +1,7 @@
 import React, { createContext, Component } from 'react'
 import { createStore, applyMiddleware } from './shared/mini-redux.js'
 import { loggingMiddleware, thunkMiddleware } from './shared/middleware.js'
-// import { Provider } from './shared/mini-provider.js'
+import { Provider, connect } from './shared/mini-react-redux.js'
 import { api } from './shared/serverAPI.mock.js'
 import {
   CREATE_NOTE,
@@ -91,49 +91,6 @@ const store = createStore(
 //////////////////////////
 // Provider and connect //
 //////////////////////////
-
-const StoreContext = createContext(store)
-const { Provider, Consumer } = StoreContext
-
-const connect = (
-  mapStateToProps = () => {},
-  mapDispatchToProps = () => {}
-) => ConnectComponent => {
-  class Connected extends Component {
-    static contextType = StoreContext
-    onStoreOrPropsChange(props, context = this.context) {
-      const store = context
-      const state = store.getState()
-      const stateProps = mapStateToProps(state, props)
-      const dispatchProps = mapDispatchToProps(store.dispatch, props)
-      return {
-        ...stateProps,
-        ...dispatchProps,
-      }
-    }
-
-    constructor(props, context) {
-      super(props, context)
-      this.state = this.onStoreOrPropsChange(props, context)
-    }
-
-    componentDidMount() {
-      this.unsubscribe = store.subscribe(() =>
-        this.setState(this.onStoreOrPropsChange(this.props, this.context))
-      )
-    }
-
-    componentWillUnmount() {
-      this.unsubscribe()
-    }
-
-    render() {
-      return <ConnectComponent {...this.props} {...this.state} />
-    }
-  }
-
-  return Connected
-}
 
 const mapStateToProps = state => ({
   notes: state.notes,
@@ -258,7 +215,7 @@ const NoteAppContainer = connect(
 
 export const MiniRedux = () => {
   return (
-    <Provider value={store}>
+    <Provider store={store}>
       <NoteAppContainer />
     </Provider>
   )
