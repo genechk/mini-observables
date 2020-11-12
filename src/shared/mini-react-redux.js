@@ -4,8 +4,11 @@
  *  Part 2: https://medium.com/@kj_huang/implementation-of-react-redux-part-2-633441bd3306
  *  Part 3: https://medium.com/@kj_huang/implementation-of-react-redux-part-3-dc54fce9746a
  */
-import React, { Component } from 'react'
+import React, { Component, createContext } from 'react'
 import PropTypes from 'prop-types'
+
+/** Null must be replaced with real store in production */
+const StoreContext = createContext({ store: null, parentSub: null })
 
 const storeShape = PropTypes.shape({
   subscribe: PropTypes.func.isRequired,
@@ -18,42 +21,61 @@ const subscriptionShape = PropTypes.shape({
   notifyNestedSubs: PropTypes.func.isRequired,
 })
 
-// Some optimizations can be stored here
-export function connect(mapStateToProps, mapDispatchToProps) {
-  return connectHOC(mapStateToProps, mapDispatchToProps)
-}
-
 export class Provider extends Component {
-  constructor(props, context) {
-    super(props, context)
-    this.store = props.store
-  }
-
-  getChildContext() {
-    return { store: this.store, parentSub: null }
-  }
-
   render() {
-    return React.Children.only(this.props.children)
+    const Context = this.props.context || StoreContext
+    return (
+      <Context.Provider
+        value={{ store: this.props.store, parentSub: null }}
+      >
+        {this.props.children}
+      </Context.Provider>
+    )
   }
 }
 
-Provider.childContextTypes = {
+// Type check for development mode
+Provider.propTypes = {
   store: storeShape,
-  parentSub: subscriptionShape,
+  context: PropTypes.object,
+  children: PropTypes.any,
+}
+
+// Some optimizations can be stored here
+export function connect(
+  mapStateToProps,
+  mapDispatchToProps,
+  mergeProps = mergeProps
+) {
+  const selectorFactory = SelectorFactory
+  return connectHOC(selectorFactory, {
+    mapStateToProps,
+    mapDispatchToProps,
+    mergeProps,
+  })
 }
 
 // Higher order component for react-redux connect clone
-function connectHOC(mapStateToProps, mapDispatchToProps) {
+function connectHOC(
+  selectorFactory,
+  {
+    mapStateToProps = () => {},
+    mapDispatchToProps = () => {},
+    mergeProps = mergeProps,
+    context = StoreContext,
+  } = {}
+) {
   return function wrapWithConnect(WrappedComponent) {
     class Connect extends Component {
+      // The context exposed to container itself
+      static contextType = StoreContext
       constructor(props, context) {
         super(props, context)
         // Get store from context
-        this.store = context.store
+        this.store = this.context.store
         this.initSelector()
         // Get parent’s subscription from context
-        const parentSub = context.parentSub
+        const parentSub = this.context.parentSub
         // Init own subscription based on parent subscription
         this.subscription = new Subscription(
           this.store,
@@ -62,15 +84,10 @@ function connectHOC(mapStateToProps, mapDispatchToProps) {
         )
       }
 
-      getChildContext() {
-        // Replace parentSub context for the child component with its own Subscription instance
-        return {
-          parentSub: this.subscription,
-        }
-      }
       componentDidMount() {
         this.subscription.trySubscribe()
       }
+
       initSelector() {
         const selector = selectorFactory(
           this.store.dispatch,
@@ -81,6 +98,7 @@ function connectHOC(mapStateToProps, mapDispatchToProps) {
         // init selector.props for initial render
         this.selector.run(this.props)
       }
+
       // Data source 1. Updates selectorProps when state changes
       onStateChange() {
         this.selector.run(this.props)
@@ -93,17 +111,22 @@ function connectHOC(mapStateToProps, mapDispatchToProps) {
           this.setState({})
         }
       }
+
       // Resets componentDidUpdate to undefined, then does the selector job
       notifyNestedSubsOnComponentDidUpdate() {
         // Set to undefined to avoid notification due to normal update (i.e. parent re-render)
         this.componentDidUpdate = undefined
         this.subscription.notifyNestedSubs()
       }
+
       // Data source 2. updates selectorProps when component’s own props change
-      componentWillReceiveProps(nextProps) {
+      componentDidUpdate(prevProps) {
         // Run selector to update selector.props
-        this.selector.run(nextProps)
+        if (!shallowEqual(prevProps, this.props)) {
+          this.selector.run(nextProps)
+        }
       }
+
       shouldComponentUpdate() {
         // Rely on stateful selector to avoid unnecessary re-render
         return this.selector.shouldComponentUpdate
@@ -113,19 +136,30 @@ function connectHOC(mapStateToProps, mapDispatchToProps) {
         // Container’s job is to inject merged props from selector into WrappedComponent
         const selector = this.selector
         selector.shouldComponentUpdate = false
-        // Get the merged props from the selector
-        return React.createElement(WrappedComponent, selector.props)
+
+        // Gets the merged props from the selector and render wrapped component
+        const renderedWrappedComponent = (
+          <WrappedComponent {...selector.props} />
+        )
+
+        // Swaps previous parentSub with this.subscription
+        const overriddenContextValue = {
+          ...this.context,
+          parentSub: this.subscription,
+        }
+
+        // Uses default or custom context
+        const ContextToUse = context
+
+        // Creates child provider that overrides parentSub in its descendants
+        return (
+          <ContextToUse.Provider value={overriddenContextValue}>
+            {renderedWrappedComponent}
+          </ContextToUse.Provider>
+        )
       }
     }
-    // The context exposed to container itself
-    Connect.contextTypes = {
-      store: storeShape,
-      parentSub: subscriptionShape,
-    }
-    // Replace the context of parentSub for the child component
-    Connect.childContextTypes = {
-      parentSub: subscriptionShape,
-    }
+
     return Connect
   }
 }
@@ -173,7 +207,7 @@ class Subscription {
 // The factory function that creates optimized selector based on mapping function
 // and store.dispatch method. The return selector can then use the mapping function
 // to convert the nextState and ownProps to mergedProps
-function selectorFactory(dispatch, mapStateToProps, mapDispatchToProps) {
+function SelectorFactory(dispatch, mapStateToProps, mapDispatchToProps) {
   // 1. Cache the direct input for the selector
   // Store state
   let state
