@@ -1,4 +1,4 @@
-const path = require ('path')
+const path = require('path')
 const HtmlWebpackPlugin = require('html-webpack-plugin')
 
 module.exports = {
@@ -25,7 +25,7 @@ module.exports = {
     }),
   ],
   devServer: {
-    contentBase: path.join(__dirname, 'dist'),
+    static: path.resolve(__dirname, 'dist'),
     compress: true,
     port: 3006,
   },
