@@ -5,21 +5,9 @@
  *  Part 3: https://medium.com/@kj_huang/implementation-of-react-redux-part-3-dc54fce9746a
  */
 import React, { Component, createContext } from 'react'
-import PropTypes from 'prop-types'
 
 /** Null must be replaced with real store in production */
 const StoreContext = createContext({ store: null, parentSub: null })
-
-const storeShape = PropTypes.shape({
-  subscribe: PropTypes.func.isRequired,
-  dispatch: PropTypes.func.isRequired,
-  getState: PropTypes.func.isRequired,
-})
-
-const subscriptionShape = PropTypes.shape({
-  trySubscribe: PropTypes.func.isRequired,
-  notifyNestedSubs: PropTypes.func.isRequired,
-})
 
 export class Provider extends Component {
   render() {
@@ -32,13 +20,6 @@ export class Provider extends Component {
       </Context.Provider>
     )
   }
-}
-
-// Type check for development mode
-Provider.propTypes = {
-  store: storeShape,
-  context: PropTypes.object,
-  children: PropTypes.any,
 }
 
 // Some optimizations can be stored here
@@ -107,7 +88,8 @@ function connectHOC(
           // to notify nested subscriptions
           this.subscription.notifyNestedSubs()
         } else {
-          this.componentDidUpdate = this.notifyNestedSubsOnComponentDidUpdate
+          this.componentDidUpdate =
+            this.notifyNestedSubsOnComponentDidUpdate
           this.setState({})
         }
       }
