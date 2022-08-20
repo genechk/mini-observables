@@ -33,6 +33,14 @@
     "webpack-cli": "^4.10.0",
     "webpack-dev-server": "^4.10.0"
   },
+  "resolutions": {
+    "glob-parent": "^5.1.2",
+    "braces": "^2.3.1"
+  },
+  "overrides": {
+    "glob-parent": "^5.1.2",
+    "braces": "^2.3.1"
+  },
   "eslintConfig": {
     "extends": "react-app",
     "parser": "babel-eslint",
